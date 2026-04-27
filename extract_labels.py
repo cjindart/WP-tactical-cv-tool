@@ -8,42 +8,39 @@ import xml.etree.ElementTree as ET
 import subprocess
 import os
 
-XML_PATH = "dataset/game_1.xml"
-VIDEO_PATH = "dataset/your_video.mp4"
-OUTPUT_PATH = "dataset/frames"
-INTERVAL = 5
-
-CODES = [
-    "California Offense",
-    "California Transition O",
-    "Stanford Offense",
-    "Stanford Transition O",
-]
-
 """
-parse_instances(file_path: str) -> list[dict]
+parse_instances(file_path: str) -> tuple[list[dict], list[str]]:
 Parses a passed in XML script of timestamps and labels
 returns a dictionary of instances for relevant CODES
 """
-def parse_instances(file_path: str) -> list[dict]:
+def parse_instances(file_path: str) -> tuple[list[dict], list[str]]:
     instances = []
+    codes = []
     with open(file_path, "r", encoding="utf-16") as f:
         content = f.read()
         root = ET.fromstring(content)
+
+        # get CODES for labels
         for instance in root.iter("instance"):
-            # print(instance.findtext("code"))
-            # print(instance.findtext("start"))
-            # print(instance.findtext("end"))
-            code = instance.findtext("code")
-            if code in CODES:
-                # print(code, instance.findtext("start"), instance.findtext("end"))
+            CODE = instance.findtext("code")
+            if CODE.endswith("Offense") or CODE.endswith("Transition O"):
+                if CODE not in codes:
+                    codes.append(CODE)
+        # print(codes)
+        codes = sorted(codes, key=len, reverse=True)
+        # print(codes)
+
+        # get all instances with CODES
+        for instance in root.iter("instance"):
+            CODE = instance.findtext("code")
+            if CODE in codes:
                 instances.append({
-                    "code": code,
+                    "code": CODE,
                     "start": float(instance.findtext("start")),
                     "end": float(instance.findtext("end")),
                 })
-    # print(instances)
-    return instances
+
+    return instances, codes
 
 """
 get_label(time: float, instances: list[dict]) -> str:
@@ -51,22 +48,22 @@ Gets the specific label for a timestamp
 takes highest priority CODE if multiple possible
 If no applicable CODE, marked as N/A (timeout, dead time)
 """
-def get_label(time: float, instances: list[dict]) -> str:
+def get_label(time: float, instances: list[dict], codes: list[str]) -> str:
     labels = []
     for instance in instances:
         if instance["start"] <= time <= instance["end"]:
             labels.append(instance["code"])
 
-    for CODE in CODES:
-        if CODE in labels:
-            return CODE
+    for code in codes:
+        if code in labels:
+            return code
     return "N/A"
 
 
 def main():
-    instances = parse_instances("datasets/xmls/game_1.xml")
+    instances, codes = parse_instances("datasets/game_1_test/game_1_test.xml")
     time = input("Input a time!: ")
-    label = get_label(float(time), instances)
+    label = get_label(float(time), instances, codes)
     print(label)
 
 
