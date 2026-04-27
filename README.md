@@ -19,3 +19,10 @@ THERE MUST BE:
 - datasets/game_name directory
 - datasets/game_name/game_name.xml (xml file of tagged game)
 - datasets/game_name/game_name.mp4 (video corresponding to xml file)
+
+Git Organization Note:
+- Large files (mp4, pngs) stored in Google Drive: [link here](https://drive.google.com/drive/folders/17102eEwf3m5Up9NIIPsSy_9AMYeqelAs?usp=drive_link)
+ - mp4 = raw video 
+ - pngs = labeled frames
+
+Code only in this repo. XML files committed alongside .py files.
