@@ -1,1 +1,22 @@
 *.mp4
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Data files
+datasets/
+*.csv
+*.json
+*.yaml
+*.jpg
+*.png
+*.jpeg
+
+# Virtual environments
+venv/
+.env
