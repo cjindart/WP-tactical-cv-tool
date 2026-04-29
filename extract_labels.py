@@ -23,12 +23,18 @@ def parse_instances(file_path: str) -> tuple[list[dict], list[str]]:
         # get CODES for labels
         for instance in root.iter("instance"):
             CODE = instance.findtext("code")
-            if CODE.endswith("Offense") or CODE.endswith("Transition O"):
+            if CODE.endswith("6v5") or CODE.endswith("Offense") or CODE.endswith("Transition O"):
                 if CODE not in codes:
                     codes.append(CODE)
-        # print(codes)
-        codes = sorted(codes, key=len, reverse=True)
-        # print(codes)
+
+        def priority(code):
+            if code.endswith("6v5"):
+                return 0
+            elif code.endswith("Transition O"):
+                return 1
+            return 2
+
+        codes = sorted(codes, key=priority)
 
         # get all instances with CODES
         for instance in root.iter("instance"):
