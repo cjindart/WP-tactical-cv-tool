@@ -5,6 +5,9 @@ What's working so far:
 1. processing of pretagged game film
 2. labeling of frames throughout pretagged film for training (frame sampled every 5 seconds from video and labeled with code from xml)
 
+In Progress
+1. YOLOv8 box labeling to finetune player tagging
+
 What needs to be implemented (for training):
 1. DBSCAN for cap color assignments and team labeling
 2. YOLOv8 for spatial locating of players in the pool
@@ -26,3 +29,9 @@ Git Organization Note:
  - pngs = labeled frames
 
 Code only in this repo. XML files committed alongside .py files.
+
+Stack so far:
+
+- XML scraping for labeling frames
+- manual boxing players in frames using label-studio
+- YOLOv8 further training on water polo frames
