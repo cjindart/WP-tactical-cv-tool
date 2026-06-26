@@ -1,0 +1,6 @@
+frame_diff_threshold: 30.0
+confidence_threshold: 0.6
+stable_sample_interval: 15
+motion_sample_interval: 5
+transition_window: 30
+batch_size: 4

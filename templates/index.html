@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WP TactSit — Auto Film Tagger</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0a0e1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    .card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 16px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    }
+
+    /* Logo */
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 2rem;
+    }
+    .logo svg { width: 36px; height: 36px; flex-shrink: 0; }
+    .logo h1 { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; }
+    .logo span { font-size: 0.85rem; color: #64748b; display: block; margin-top: 2px; }
+
+    /* Steps */
+    .step {
+      margin-bottom: 0;
+      display: none;
+    }
+    .step.active { display: block; }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 1.25rem;
+    }
+    .step-num {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: #1e3a5f;
+      color: #60a5fa;
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-title { font-weight: 600; color: #f1f5f9; font-size: 0.95rem; }
+
+    .divider { border: none; border-top: 1px solid #1e293b; margin: 1.75rem 0; }
+
+    label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 0.95rem;
+      padding: 0.65rem 0.9rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #3b82f6; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #1e293b;
+      border-radius: 12px;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: #3b82f6; background: #0f172a; }
+    .drop-zone input { display: none; }
+    .drop-zone .dz-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .drop-zone .dz-hint { font-size: 0.85rem; color: #64748b; }
+    .drop-zone .dz-name { font-size: 0.9rem; color: #60a5fa; margin-top: 0.5rem; word-break: break-all; }
+    .dz-uploading { font-size: 0.85rem; color: #7c3aed; margin-top: 0.5rem; }
+
+    /* Teams row */
+    .teams-wrapper {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.5rem;
+      align-items: end;
+      margin-bottom: 1.25rem;
+    }
+    .vs-badge {
+      display: flex; align-items: flex-end; padding-bottom: 0.65rem;
+      justify-content: center;
+      font-size: 0.75rem; color: #475569; font-weight: 700; letter-spacing: 0.1em;
+    }
+    .teams-wrapper input { margin-bottom: 0; }
+
+    /* Color picker step */
+    .color-frame-wrap {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+      cursor: crosshair;
+      margin-bottom: 0.4rem;
+      line-height: 0;
+      touch-action: none;
+    }
+    .color-frame-wrap canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .crosshair-ring {
+      position: absolute;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.6);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      display: none;
+    }
+    /* Color preview magnifier shown at cursor when zoomed */
+    .color-loupe {
+      position: absolute;
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      pointer-events: none;
+      transform: translate(-50%, calc(-100% - 14px));
+      display: none;
+      overflow: hidden;
+      background: #000;
+    }
+    .zoom-hint {
+      font-size: 0.72rem;
+      color: #475569;
+      text-align: right;
+      margin-bottom: 0.75rem;
+    }
+    .zoom-hint span {
+      color: #3b82f6;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    .zoom-hint span:hover { color: #60a5fa; }
+
+    .color-instruction {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 0.75rem;
+      line-height: 1.5;
+    }
+    .color-instruction strong { color: #f1f5f9; }
+
+    .color-swatches {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .swatch-box {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .swatch-box.active-pick { border-color: #3b82f6; }
+    .swatch-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.15);
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .swatch-label { font-size: 0.8rem; }
+    .swatch-label .team-name { font-weight: 600; color: #f1f5f9; display: block; }
+    .swatch-label .color-val { color: #64748b; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+    .swatch-label .pick-hint { color: #3b82f6; font-size: 0.72rem; }
+
+    .resample-btn {
+      background: none;
+      border: 1px solid #1e293b;
+      color: #64748b;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 1rem;
+    }
+    .resample-btn:hover { border-color: #475569; color: #94a3b8; }
+
+    /* API key */
+    .api-key-row { position: relative; margin-bottom: 1.25rem; }
+    .toggle-key {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: #64748b; cursor: pointer; font-size: 0.8rem;
+    }
+    .api-key-row input { padding-right: 3.5rem; margin-bottom: 0; }
+
+    /* Buttons */
+    .btn-primary {
+      width: 100%;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 0.85rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-bottom: 0.5rem;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { background: #1e3a5f; color: #475569; cursor: not-allowed; }
+
+    .btn-row { display: grid; grid-template-columns: 1fr auto auto; gap: 0.75rem; }
+    .btn-secondary {
+      background: #0f172a;
+      color: #94a3b8;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .btn-secondary:hover { border-color: #7c3aed; color: #a78bfa; }
+    .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .demo-notice {
+      font-size: 0.75rem; color: #475569; text-align: center; margin-top: 0.5rem;
+    }
+    .demo-notice strong { color: #7c3aed; }
+
+    /* Progress */
+    #progress-section { display: none; margin-top: 1.5rem; }
+    .demo-badge {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      background: #13102a;
+      border: 1px solid #4c1d95;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      color: #a78bfa;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    .demo-badge.show { display: inline-flex; }
+
+    .progress-stage {
+      font-size: 0.85rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .progress-stage .stage-name { color: #e2e8f0; }
+    .progress-stage .pct { color: #60a5fa; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .progress-bar-bg { background: #1e293b; border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: 1.25rem; }
+    .progress-bar-fill {
+      background: linear-gradient(90deg, #2563eb, #7c3aed);
+      height: 100%; border-radius: 999px;
+      transition: width 0.4s ease; width: 0%;
+    }
+
+    /* Timeline + results */
+    .timeline-section { margin-bottom: 1.25rem; }
+    .section-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+    .timeline-bar { position: relative; height: 36px; background: #0f172a; border-radius: 8px; overflow: hidden; border: 1px solid #1e293b; }
+    .timeline-segment {
+      position: absolute; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 700; color: rgba(255,255,255,0.9);
+      overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 4px;
+    }
+    .timeline-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0.5rem; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: #94a3b8; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+    .segments-list { max-height: 180px; overflow-y: auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; margin-bottom: 1.25rem; }
+    .segment-row { display: grid; grid-template-columns: 1fr 80px 80px; gap: 8px; padding: 6px 12px; border-bottom: 1px solid #1a2332; font-size: 0.8rem; align-items: center; }
+    .segment-row:last-child { border-bottom: none; }
+    .seg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+    .seg-time { color: #64748b; font-variant-numeric: tabular-nums; }
+
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem; }
+    .stat-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 0.9rem 1rem; }
+    .stat-label { font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .stat-val { font-size: 1.3rem; font-weight: 700; color: #f1f5f9; }
+
+    .download-btn {
+      display: block; width: 100%; text-align: center;
+      background: #16a34a; color: white; border: none; border-radius: 10px;
+      padding: 0.85rem; font-size: 1rem; font-weight: 600; cursor: pointer;
+      text-decoration: none; transition: background 0.15s; margin-top: 1.25rem;
+    }
+    .download-btn:hover { background: #15803d; }
+
+    .error-box {
+      background: #1c0a0a; border: 1px solid #7f1d1d; border-radius: 10px;
+      padding: 1rem; color: #fca5a5; font-size: 0.875rem; margin-top: 1rem; display: none;
+    }
+
+    .back-link {
+      font-size: 0.8rem; color: #475569; cursor: pointer; margin-bottom: 1rem;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .back-link:hover { color: #94a3b8; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#1e3a5f"/>
+      <path d="M6 24 Q12 18 18 24 Q24 30 30 24" stroke="#3b82f6" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M6 18 Q12 12 18 18 Q24 24 30 18" stroke="#60a5fa" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.6"/>
+      <circle cx="18" cy="12" r="3" fill="#93c5fd"/>
+    </svg>
+    <div>
+      <h1>WP TactSit</h1>
+      <span>Automated Game Film Tagger</span>
+    </div>
+  </div>
+
+  <!-- STEP 1: Upload -->
+  <div class="step active" id="step-upload">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title">Upload game film</div>
+    </div>
+
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('video-input').click()">
+      <input type="file" id="video-input" accept=".mp4" />
+      <div class="dz-icon">🎬</div>
+      <div class="dz-hint">Drop .mp4 here or click to browse</div>
+      <div class="dz-name" id="file-label"></div>
+      <div class="dz-uploading" id="upload-status" style="display:none">Uploading…</div>
+    </div>
+
+    <div id="error-box-1" class="error-box" style="margin-top:0.75rem"></div>
+
+    <hr class="divider" style="margin-top:1.5rem" />
+    <div style="text-align:center; font-size:0.82rem; color:#475569; margin-top:-0.5rem">
+      No video yet?&nbsp;
+      <span style="color:#7c3aed; cursor:pointer; font-weight:600" id="demo-start-link" onclick="startDemo()">⚡ Try 2-min demo clip</span>
+    </div>
+  </div>
+
+  <!-- STEP 2: Team names + colors -->
+  <div class="step" id="step-config">
+    <span class="back-link" onclick="goBack('step-upload')">← Back</span>
+
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title">Name your teams</div>
+    </div>
+
+    <div class="teams-wrapper">
+      <div>
+        <label for="team1">Team 1 (Your Team)</label>
+        <input type="text" id="team1" placeholder="e.g. Stanford" />
+      </div>
+      <div class="vs-badge">VS</div>
+      <div>
+        <label for="team2">Team 2 (Opponent)</label>
+        <input type="text" id="team2" placeholder="e.g. California" />
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="step-header" style="margin-bottom:0.75rem">
+      <div class="step-num">3</div>
+      <div class="step-title">Sample cap colors</div>
+    </div>
+
+    <p class="color-instruction" id="color-instr">
+      Click on a <strong id="pick-team-name">Team 1</strong> player's cap in the frame below.
+    </p>
+
+    <div class="color-frame-wrap" id="frame-wrap">
+      <canvas id="frame-canvas"></canvas>
+      <div class="crosshair-ring" id="crosshair"></div>
+      <div class="color-loupe" id="loupe"></div>
+    </div>
+    <div class="zoom-hint">
+      Pinch or scroll to zoom &nbsp;·&nbsp; click to sample
+      <span onclick="resetZoom()">Reset zoom</span>
+    </div>
+
+    <button class="resample-btn" onclick="resampleFrame()">↺ Show a different frame</button>
+
+    <div class="color-swatches">
+      <div class="swatch-box active-pick" id="swatch1">
+        <div class="swatch-dot" id="dot1" style="background:#334155"></div>
+        <div class="swatch-label">
+          <span class="team-name" id="swatch1-name">Team 1</span>
+          <span class="color-val" id="hex1">—</span>
+          <span class="pick-hint" id="hint1">← Click frame to pick</span>
+        </div>
+      </div>
+      <div class="swatch-box" id="swatch2">
+        <div class="swatch-dot" id="dot2" style="background:#334155"></div>
+        <div class="swatch-label">
+          <span class="team-name" id="swatch2-name">Team 2</span>
+          <span class="color-val" id="hex2">—</span>
+          <span class="pick-hint" id="hint2" style="display:none">← Click frame to pick</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="step-header" style="margin-bottom:0.75rem">
+      <div class="step-num">4</div>
+      <div class="step-title">API key &amp; run</div>
+    </div>
+
+    <div class="api-key-row">
+      <label for="api_key">Anthropic API Key</label>
+      <input type="password" id="api_key" placeholder="sk-ant-…" />
+      <button type="button" class="toggle-key" onclick="toggleKey()">show</button>
+    </div>
+
+    <div>
+      <button class="btn-primary" id="run-btn" onclick="startJob()" style="margin-bottom:0">
+        <span id="run-btn-label">Tag Film</span>
+      </button>
+    </div>
+
+    <div id="error-box-2" class="error-box"></div>
+  </div>
+
+  <!-- PROGRESS + RESULTS -->
+  <div id="progress-section">
+    <hr class="divider" />
+    <div class="demo-badge" id="demo-badge">⚡ <span id="demo-badge-text"></span></div>
+    <div class="progress-stage">
+      <span class="stage-name" id="stage-label">Starting…</span>
+      <span class="pct" id="pct-label">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+
+    <div id="results-section" style="display:none">
+      <!-- Demo comparison: shown only for demo sessions -->
+      <div id="comparison-section" style="display:none">
+        <div class="section-label" style="margin-bottom:0.6rem">Timeline Comparison</div>
+        <div style="display:grid; gap:0.75rem">
+          <div class="timeline-section" style="margin-bottom:0">
+            <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:0.3rem">Pipeline Output</div>
+            <div class="timeline-bar" id="timeline-bar-pipeline"></div>
+          </div>
+          <div class="timeline-section" style="margin-bottom:0">
+            <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:0.3rem">Ground Truth</div>
+            <div class="timeline-bar" id="timeline-bar-gt"></div>
+          </div>
+        </div>
+        <div class="timeline-legend" id="timeline-legend"></div>
+        <div style="height:1px; background:#1e293b; margin:1rem 0"></div>
+      </div>
+
+      <!-- Normal (non-demo) single timeline -->
+      <div id="single-timeline-section">
+        <div class="timeline-section">
+          <div class="section-label">Tagged Timeline</div>
+          <div class="timeline-bar" id="timeline-bar"></div>
+          <div class="timeline-legend" id="timeline-legend-single"></div>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-bottom:0.4rem">Instances</div>
+      <div class="segments-list" id="segments-list"></div>
+
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-label">Frames Analyzed</div><div class="stat-val" id="stat-frames">—</div></div>
+        <div class="stat-box"><div class="stat-label">Instances Written</div><div class="stat-val" id="stat-segments">—</div></div>
+        <div class="stat-box"><div class="stat-label">API Calls</div><div class="stat-val" id="stat-calls">—</div></div>
+        <div class="stat-box"><div class="stat-label">Est. Cost</div><div class="stat-val" id="stat-cost">—</div></div>
+      </div>
+
+      <a id="download-btn" class="download-btn" href="#">⬇ Download Sportscode XML</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---- State ----
+  let sessionId = null;
+  let color1 = null;   // hex string or null
+  let color2 = null;
+  let pickingTeam = 1; // which team we're currently picking for
+  let frameCanvas = document.getElementById("frame-canvas");
+  let frameCtx = frameCanvas.getContext("2d");
+  let frameImg = null; // Image object currently rendered
+  let pollInterval = null;
+
+  // ---- Drag & drop upload ----
+  const dropZone = document.getElementById("drop-zone");
+  const videoInput = document.getElementById("video-input");
+
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault(); dropZone.classList.remove("drag-over");
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.endsWith(".mp4")) { setFileAndUpload(f); }
+  });
+  videoInput.addEventListener("change", () => {
+    if (videoInput.files[0]) setFileAndUpload(videoInput.files[0]);
+  });
+
+  async function setFileAndUpload(file) {
+    document.getElementById("file-label").textContent = file.name;
+    showError1("");
+    document.getElementById("upload-status").style.display = "block";
+
+    const fd = new FormData();
+    fd.append("video", file);
+    try {
+      const resp = await fetch("/upload-video", { method: "POST", body: fd });
+      const data = await resp.json();
+      if (!resp.ok) { showError1(data.error || "Upload failed"); document.getElementById("upload-status").style.display = "none"; return; }
+      sessionId = data.session_id;
+      loadFrame(data.frame);
+      showStep("step-config");
+    } catch (err) {
+      showError1("Upload error: " + err.message);
+    }
+    document.getElementById("upload-status").style.display = "none";
+  }
+
+  function loadFrame(b64) {
+    const img = new Image();
+    img.onload = () => {
+      frameImg = img;
+      const iw = img.naturalWidth  || img.width;
+      const ih = img.naturalHeight || img.height;
+      // Main display canvas — sized to image aspect, displayed at CSS width 100%
+      frameCanvas.width  = iw;
+      frameCanvas.height = ih;
+      // Offscreen canvas — full res, never displayed, used only for pixel sampling
+      offscreen.width  = iw;
+      offscreen.height = ih;
+      offscreenCtx.drawImage(img, 0, 0);
+      // Reset zoom and draw
+      zoom = { scale: 1, cx: 0.5, cy: 0.5 };
+      drawZoomed();
+    };
+    img.src = "data:image/jpeg;base64," + b64;
+  }
+
+  async function resampleFrame() {
+    if (!sessionId) return;
+    const resp = await fetch(`/resample-frame/${sessionId}`, { method: "POST" });
+    const data = await resp.json();
+    if (data.frame) loadFrame(data.frame);
+  }
+
+  // ---- Canvas zoom + eyedropper ----
+  const crosshair  = document.getElementById("crosshair");
+  const loupe      = document.getElementById("loupe");
+  const frameWrap  = document.getElementById("frame-wrap");
+
+  // Offscreen canvas holds the full-res image for pixel-accurate sampling
+  const offscreen    = document.createElement("canvas");
+  const offscreenCtx = offscreen.getContext("2d");
+
+  // Zoom state: we track a viewport into the image using a center point + scale
+  let zoom = { scale: 1, cx: 0.5, cy: 0.5 }; // cx/cy as fractions of image size
+
+  function drawZoomed() {
+    if (!frameImg) return;
+    const iw = frameImg.naturalWidth  || frameImg.width;
+    const ih = frameImg.naturalHeight || frameImg.height;
+    const cw = frameCanvas.width;
+    const ch = frameCanvas.height;
+
+    // Source rect in image coordinates
+    const visW = iw / zoom.scale;
+    const visH = ih / zoom.scale;
+    let sx = zoom.cx * iw - visW / 2;
+    let sy = zoom.cy * ih - visH / 2;
+    // Clamp so we don't pan outside image
+    sx = Math.max(0, Math.min(iw - visW, sx));
+    sy = Math.max(0, Math.min(ih - visH, sy));
+    zoom.cx = (sx + visW / 2) / iw;
+    zoom.cy = (sy + visH / 2) / ih;
+
+    frameCtx.clearRect(0, 0, cw, ch);
+    frameCtx.drawImage(frameImg, sx, sy, visW, visH, 0, 0, cw, ch);
+  }
+
+  // Convert a point in canvas display coords → image pixel coords
+  function canvasToImage(clientX, clientY) {
+    const rect = frameCanvas.getBoundingClientRect();
+    const fracX = (clientX - rect.left)  / rect.width;
+    const fracY = (clientY - rect.top)   / rect.height;
+    const iw = frameImg.naturalWidth  || frameImg.width;
+    const ih = frameImg.naturalHeight || frameImg.height;
+    const visW = iw / zoom.scale;
+    const visH = ih / zoom.scale;
+    const sx = zoom.cx * iw - visW / 2;
+    const sy = zoom.cy * ih - visH / 2;
+    return {
+      x: Math.round(Math.max(0, Math.min(iw - 1, sx + fracX * visW))),
+      y: Math.round(Math.max(0, Math.min(ih - 1, sy + fracY * visH))),
+    };
+  }
+
+  function resetZoom() {
+    zoom = { scale: 1, cx: 0.5, cy: 0.5 };
+    drawZoomed();
+  }
+
+  // Wheel = zoom (works for trackpad pinch via ctrlKey too)
+  frameWrap.addEventListener("wheel", e => {
+    e.preventDefault();
+    if (!frameImg) return;
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newScale = Math.max(1, Math.min(12, zoom.scale * factor));
+    if (newScale === zoom.scale) return;
+
+    // Zoom toward cursor position
+    const rect = frameWrap.getBoundingClientRect();
+    const fracX = (e.clientX - rect.left) / rect.width;
+    const fracY = (e.clientY - rect.top)  / rect.height;
+    // Keep the image point under the cursor fixed
+    const iw = frameImg.naturalWidth  || frameImg.width;
+    const ih = frameImg.naturalHeight || frameImg.height;
+    const oldVisW = iw / zoom.scale;
+    const oldVisH = ih / zoom.scale;
+    const imgX = (zoom.cx * iw - oldVisW / 2) + fracX * oldVisW;
+    const imgY = (zoom.cy * ih - oldVisH / 2) + fracY * oldVisH;
+    const newVisW = iw / newScale;
+    const newVisH = ih / newScale;
+    zoom.scale = newScale;
+    zoom.cx = (imgX - fracX * newVisW + newVisW / 2) / iw;
+    zoom.cy = (imgY - fracY * newVisH + newVisH / 2) / ih;
+    drawZoomed();
+  }, { passive: false });
+
+  // Crosshair + loupe on mousemove
+  frameWrap.addEventListener("mousemove", e => {
+    const rect = frameWrap.getBoundingClientRect();
+    const lx = e.clientX - rect.left;
+    const ly = e.clientY - rect.top;
+    crosshair.style.left = lx + "px";
+    crosshair.style.top  = ly + "px";
+    crosshair.style.display = "block";
+
+    // Loupe: show zoomed preview of pixel under cursor
+    if (frameImg && zoom.scale > 1) {
+      const { x, y } = canvasToImage(e.clientX, e.clientY);
+      const px = offscreenCtx.getImageData(x, y, 1, 1).data;
+      const hex = rgbToHex(px[0], px[1], px[2]);
+      loupe.style.background = hex;
+      loupe.style.left = lx + "px";
+      loupe.style.top  = ly + "px";
+      loupe.style.display = "block";
+    } else {
+      loupe.style.display = "none";
+    }
+  });
+
+  frameWrap.addEventListener("mouseleave", () => {
+    crosshair.style.display = "none";
+    loupe.style.display = "none";
+  });
+
+  // Click = sample pixel
+  frameWrap.addEventListener("click", e => {
+    if (!frameImg) return;
+    const { x, y } = canvasToImage(e.clientX, e.clientY);
+    const px = offscreenCtx.getImageData(x, y, 1, 1).data;
+    const hex = rgbToHex(px[0], px[1], px[2]);
+
+    if (pickingTeam === 1) {
+      color1 = hex;
+      document.getElementById("dot1").style.background = hex;
+      document.getElementById("hex1").textContent = hex;
+      document.getElementById("hint1").style.display = "none";
+      pickingTeam = 2;
+      document.getElementById("swatch1").classList.remove("active-pick");
+      document.getElementById("swatch2").classList.add("active-pick");
+      document.getElementById("hint2").style.display = "block";
+      updatePickInstr();
+    } else {
+      color2 = hex;
+      document.getElementById("dot2").style.background = hex;
+      document.getElementById("hex2").textContent = hex;
+      document.getElementById("hint2").style.display = "none";
+      document.getElementById("swatch2").classList.remove("active-pick");
+      updatePickInstr();
+    }
+  });
+
+  function updatePickInstr() {
+    const t1 = document.getElementById("team1")?.value.trim() || "Team 1";
+    const t2 = document.getElementById("team2")?.value.trim() || "Team 2";
+    const n1 = document.getElementById("swatch1-name");
+    const n2 = document.getElementById("swatch2-name");
+    if (n1) n1.textContent = t1;
+    if (n2) n2.textContent = t2;
+    const instr = document.getElementById("color-instr");
+    if (!instr) return;
+    if (pickingTeam === 1) {
+      instr.innerHTML = `Click on a <strong>${t1}</strong> player's cap in the frame below.`;
+    } else if (!color2) {
+      instr.innerHTML = `Got it! Now click on a <strong>${t2}</strong> player's cap.`;
+    } else {
+      instr.innerHTML = `Both colors sampled. You can re-click to update, or run below.`;
+    }
+  }
+
+  // Keep swatch names in sync with team name inputs
+  document.getElementById("team1").addEventListener("input", updatePickInstr);
+  document.getElementById("team2").addEventListener("input", updatePickInstr);
+
+  // ---- Demo shortcut — load clip frame, pre-fill names, enter config ----
+  let isDemoSession = false;
+
+  async function startDemo() {
+    const link = document.getElementById("demo-start-link");
+    link.textContent = "Loading…";
+    try {
+      const resp = await fetch("/demo-start", { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) { link.textContent = "⚡ Try 2-min demo clip"; showError1(data.error || "Failed"); return; }
+      sessionId = data.session_id;
+      isDemoSession = true;
+      loadFrame(data.frame);
+      // Pre-fill team names with the known demo teams
+      const t1 = document.getElementById("team1");
+      const t2 = document.getElementById("team2");
+      if (!t1.value) t1.value = "Stanford";
+      if (!t2.value) t2.value = "California";
+      document.getElementById("run-btn-label").textContent = "Run Demo";
+      updatePickInstr();
+      showStep("step-config");
+    } catch(err) {
+      showError1("Error: " + err.message);
+    }
+    link.textContent = "⚡ Try 2-min demo clip";
+  }
+
+  // ---- Navigation ----
+  function showStep(id) {
+    document.querySelectorAll(".step").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+  function goBack(id) {
+    if (id === "step-upload") { isDemoSession = false; document.getElementById("run-btn-label").textContent = "Tag Film"; }
+    showStep(id);
+  }
+
+  // ---- Run buttons ----
+  function getTeams() {
+    const t1 = document.getElementById("team1").value.trim();
+    const t2 = document.getElementById("team2").value.trim();
+    return { t1: t1 || "Team 1", t2: t2 || "Team 2" };
+  }
+
+  async function startJob() {
+    const { t1, t2 } = getTeams();
+    const apiKey = document.getElementById("api_key").value.trim();
+    if (!apiKey) { showError2("Anthropic API key is required."); return; }
+    if (!sessionId) { showError2("No video loaded. Upload a file or use the demo clip link."); return; }
+
+    setRunning();
+    const fd = new FormData();
+    fd.append("session_id", sessionId);
+    fd.append("team1", t1); fd.append("team2", t2);
+    fd.append("color1", color1 || "#cc0000"); fd.append("color2", color2 || "#0044cc");
+    fd.append("api_key", apiKey);
+
+    try {
+      const resp = await fetch("/process", { method: "POST", body: fd });
+      const data = await resp.json();
+      if (!resp.ok) { showError2(data.error || "Failed"); setIdle(); return; }
+      pollInterval = setInterval(() => pollStatus(data.job_id), 2000);
+    } catch(err) { showError2("Network error: " + err.message); setIdle(); }
+  }
+
+  // ---- Progress polling ----
+  function setRunning() {
+    const btn = document.getElementById("run-btn");
+    btn.disabled = true;
+    document.getElementById("run-btn-label").textContent = "Running…";
+
+    const badge = document.getElementById("demo-badge");
+    const badgeText = document.getElementById("demo-badge-text");
+    if (isDemoSession) {
+      badgeText.textContent = "Demo — Cal vs Stanford (2-min clip)";
+      badge.classList.add("show");
+    } else {
+      badge.classList.remove("show");
+    }
+
+    document.getElementById("progress-section").style.display = "block";
+    document.getElementById("results-section").style.display = "none";
+    setProgress(0, "Starting…");
+  }
+
+  function setIdle() {
+    document.getElementById("run-btn").disabled = false;
+    document.getElementById("run-btn-label").textContent = isDemoSession ? "Run Demo" : "Tag Film";
+  }
+
+  function setProgress(pct, stage) {
+    document.getElementById("progress-fill").style.width = pct + "%";
+    document.getElementById("stage-label").textContent = stage;
+    document.getElementById("pct-label").textContent = Math.round(pct) + "%";
+  }
+
+  async function pollStatus(jobId) {
+    try {
+      const resp = await fetch("/status/" + jobId);
+      const data = await resp.json();
+      setProgress(data.progress || 0, data.stage || "…");
+      if (data.status === "done") {
+        clearInterval(pollInterval);
+        setIdle();
+        setProgress(100, "Complete ✓");
+        const s = data.stats || {};
+        document.getElementById("stat-frames").textContent = s.frames_analyzed ?? "—";
+        document.getElementById("stat-segments").textContent = s.segments_found ?? "—";
+        document.getElementById("stat-calls").textContent = s.total_api_calls ?? "—";
+        document.getElementById("stat-cost").textContent = s.estimated_cost_usd != null ? "$" + s.estimated_cost_usd.toFixed(4) : "—";
+
+        const xmlResp = await fetch("/download/" + jobId);
+        const xmlText = await xmlResp.text();
+
+        if (isDemoSession) {
+          // Show side-by-side comparison
+          document.getElementById("comparison-section").style.display = "block";
+          document.getElementById("single-timeline-section").style.display = "none";
+          buildTimelineBar(xmlText, document.getElementById("timeline-bar-pipeline"));
+          const gtResp = await fetch("/demo-ground-truth");
+          const gtXml = await gtResp.text();
+          buildTimelineBar(gtXml, document.getElementById("timeline-bar-gt"));
+          buildLegend(document.getElementById("timeline-legend"));
+        } else {
+          document.getElementById("comparison-section").style.display = "none";
+          document.getElementById("single-timeline-section").style.display = "block";
+          buildTimelineBar(xmlText, document.getElementById("timeline-bar"));
+          buildLegend(document.getElementById("timeline-legend-single"));
+        }
+        buildSegmentsList(xmlText);
+
+        const dl = document.getElementById("download-btn");
+        dl.href = "/download/" + jobId;
+        dl.setAttribute("download", `${data.team1}_vs_${data.team2}_tags.xml`);
+        document.getElementById("results-section").style.display = "block";
+      } else if (data.status === "error") {
+        clearInterval(pollInterval);
+        setIdle();
+        showError2("Error: " + (data.error || "Unknown"));
+      }
+    } catch(e) { /* blip */ }
+  }
+
+  // ---- Timeline ----
+  function colorForLabel(label) {
+    // Use the sampled cap colors if available, else fallback palette
+    const t1 = document.getElementById("team1").value.trim() || "Team 1";
+    const t2 = document.getElementById("team2").value.trim() || "Team 2";
+    if (label.startsWith(t1)) return color1 || "#2563eb";
+    if (label.startsWith(t2)) return color2 || "#d97706";
+    return "#374151";
+  }
+
+  function fmt(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  }
+
+  function parseSegs(xmlText) {
+    const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+    const seen = new Set();
+    const segs = [];
+    for (const inst of doc.querySelectorAll("instance")) {
+      const start = parseFloat(inst.querySelector("start")?.textContent || 0);
+      const end   = parseFloat(inst.querySelector("end")?.textContent || 0);
+      const code  = inst.querySelector("code")?.textContent?.trim() || "";
+      const key = `${start}-${end}-${code}`;
+      if (!seen.has(key)) { seen.add(key); segs.push({ start, end, code }); }
+    }
+    // Deduplicate overlapping pairs — show highest priority per time slot
+    const displayed = new Map();
+    for (const seg of segs) {
+      const k = `${seg.start}-${seg.end}`;
+      const ex = displayed.get(k);
+      if (!ex || priority(seg.code) > priority(ex)) displayed.set(k, seg.code);
+    }
+    return Array.from(displayed.entries())
+      .map(([k, code]) => { const [s,e] = k.split("-").map(Number); return {start:s,end:e,code}; })
+      .sort((a,b) => a.start - b.start);
+  }
+
+  function buildTimelineBar(xmlText, barEl) {
+    const segs = parseSegs(xmlText);
+    if (!segs.length) return;
+    const minT = Math.min(...segs.map(s => s.start));
+    const maxT = Math.max(...segs.map(s => s.end));
+    const dur = maxT - minT || 1;
+    barEl.innerHTML = "";
+    for (const seg of segs) {
+      const left  = ((seg.start - minT) / dur) * 100;
+      const width = ((seg.end - seg.start) / dur) * 100;
+      const el = document.createElement("div");
+      el.className = "timeline-segment";
+      el.style.left = left + "%";
+      el.style.width = Math.max(width, 0.5) + "%";
+      el.style.background = colorForLabel(seg.code);
+      el.textContent = width > 5 ? seg.code.replace(/^.+ /, "") : "";
+      el.title = `${seg.code}\n${fmt(seg.start)} – ${fmt(seg.end)}`;
+      barEl.appendChild(el);
+    }
+  }
+
+  function buildLegend(legendEl) {
+    const t1 = document.getElementById("team1").value.trim() || "Team 1";
+    const t2 = document.getElementById("team2").value.trim() || "Team 2";
+    legendEl.innerHTML = "";
+    for (const [name, c] of [[t1, color1 || "#2563eb"], [t2, color2 || "#d97706"]]) {
+      const div = document.createElement("div");
+      div.className = "legend-item";
+      div.innerHTML = `<div class="legend-dot" style="background:${c}"></div>${name}`;
+      legendEl.appendChild(div);
+    }
+  }
+
+  function buildSegmentsList(xmlText) {
+    const segs = parseSegs(xmlText);
+    const list = document.getElementById("segments-list");
+    list.innerHTML = "";
+    for (const seg of segs) {
+      const row = document.createElement("div");
+      row.className = "segment-row";
+      const c = colorForLabel(seg.code);
+      row.innerHTML = `
+        <span><span class="seg-dot" style="background:${c}"></span>${seg.code}</span>
+        <span class="seg-time">${fmt(seg.start)}</span>
+        <span class="seg-time">${fmt(seg.end)}</span>
+      `;
+      list.appendChild(row);
+    }
+  }
+
+  function priority(code) {
+    if (code.includes("6v5")) return 3;
+    if (code.includes("Transition O")) return 2;
+    if (code.includes("Offense")) return 1;
+    return 0;
+  }
+
+  // ---- Auto-fill API key from local .env (dev only) ----
+  (async () => {
+    try {
+      const resp = await fetch("/prefill-key");
+      const data = await resp.json();
+      if (data.key) {
+        const inp = document.getElementById("api_key");
+        if (inp && !inp.value) inp.value = data.key;
+      }
+    } catch(e) { /* not available — no-op */ }
+  })();
+
+  // ---- Misc ----
+  function rgbToHex(r, g, b) {
+    return "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
+  }
+
+  function toggleKey() {
+    const inp = document.getElementById("api_key");
+    const btn = document.querySelector(".toggle-key");
+    if (inp.type === "password") { inp.type = "text"; btn.textContent = "hide"; }
+    else { inp.type = "password"; btn.textContent = "show"; }
+  }
+
+  function showError1(msg) {
+    const b = document.getElementById("error-box-1");
+    b.textContent = msg; b.style.display = msg ? "block" : "none";
+  }
+  function showError2(msg) {
+    const b = document.getElementById("error-box-2");
+    b.textContent = msg; b.style.display = msg ? "block" : "none";
+  }
+</script>
+</body>
+</html>
