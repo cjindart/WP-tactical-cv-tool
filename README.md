@@ -1,120 +1,119 @@
 # WP TactSit — Automated Water Polo Film Tagger
 
-Upload a raw `.mp4` game film, get back a Sportscode-compatible `.xml` with your six key codes automatically tagged.
+Upload a raw `.mp4` game film, get back a Sportscode-compatible `.xml` with six key codes automatically tagged.
 
-## What it does
-
-Water polo coaches spend hours manually tagging possessions in Sportscode. This tool uses computer vision and Claude AI to do it automatically.
-
-**The six codes it tags:**
+**The six codes:**
 - `[Team] Offense` — half-court set possession
-- `[Team] Transition O` — fast break up the pool
-- `[Team] 6v5` — man-up power play (always written alongside a concurrent `Offense` instance, matching Sportscode's overlap convention)
+- `[Team] Transition O` — fast break
+- `[Team] 6v5` — man-up power play (written alongside a concurrent `Offense` instance)
 
-**The pipeline, in plain English:**
-1. Scans the video for motion zones vs. stable zones (no API cost)
-2. Extracts ~100 representative frames, sampling more densely during action
-3. Sends frames to Claude in batches of 4 with few-shot example images
-4. Does a second dense pass around every label-change boundary to pin down exact transition times
-5. Smooths out noise, merges consecutive frames into instances
-6. Writes a `.xml` you can open directly in Sportscode
+---
 
-**Cost:** roughly **$0.50–$1.50 per 90-minute game** in Anthropic API usage.
+## Architecture
+
+The pipeline is being migrated from Claude vision to a local CV model. Current state:
+
+### Stage 1 (in development) — YOLO player detection
+Fine-tune YOLOv8 on water polo footage to detect per frame:
+- `player_dark` — dark-cap player
+- `player_light` — light-cap player
+- `goalkeeper`
+
+### Stage 2 (planned) — Feature extraction
+Per-frame signals: dark/light cap counts, centroids, goalie position, zoom level, optical flow.
+
+### Stage 3 (planned) — Temporal classifier
+LSTM or sliding-window model trained on frame features → outputs Offense / Transition O / 6v5 / neutral.
+
+### Current fallback — Claude vision pipeline
+The Flask app (`app.py`) runs the original Claude-based classifier while the YOLO pipeline is being trained. It samples frames, sends them to Claude Sonnet in batches with few-shot examples, and produces a Sportscode XML. Cost: ~$0.50–1.50 per 90-minute game.
 
 ---
 
 ## Setup
 
-### 1. Clone the repo
-
-```bash
-git clone https://github.com/YOUR_USERNAME/WP-TactSit.git
-cd WP-TactSit
-```
-
-### 2. Install dependencies
-
 Requires Python 3.9+.
 
 ```bash
-pip install flask anthropic opencv-python pyyaml python-dotenv
+pip install flask anthropic opencv-python pyyaml python-dotenv ultralytics tqdm
 ```
 
-### 3. Add your Anthropic API key
+---
 
-Get a key at [console.anthropic.com](https://console.anthropic.com). Then either:
-
-**Option A — paste it in the web UI** (simplest, no setup needed)
-
-**Option B — create a `.env` file** so it pre-fills automatically:
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-### 4. Add your dataset (optional but recommended)
-
-The tool auto-extracts few-shot example images from labeled games you already have. Place them in:
-```
-datasets/
-  OpponentName/
-    OpponentName.mp4
-    OpponentName.xml   ← Sportscode XML, UTF-16 encoded
-```
-
-If you don't have any labeled games, the tool will still run — it just won't have few-shot examples.
-
-### 5. Run
+## Running the web app (Claude vision pipeline)
 
 ```bash
 python app.py
 ```
 
-Open `http://localhost:5050` in your browser.
+Open `http://localhost:5050`. Upload an `.mp4`, enter team names, sample cap colors, paste your Anthropic API key, and click **Tag Film**.
 
----
-
-## How to use
-
-1. **Drop your `.mp4`** into the upload zone. The server extracts a frame from ~2 minutes in.
-
-2. **Enter team names** — Team 1 (your team) and Team 2 (opponent).
-
-3. **Sample cap colors** — click on a player's cap in the extracted frame for each team. This helps Claude count caps to correctly identify which team has the 6v5 advantage. Hit "Show a different frame" if both teams aren't visible.
-
-4. **Enter your API key** (or it pre-fills from `.env`).
-
-5. **Click Tag Film.** A progress bar walks through each pipeline stage. When done, a color-coded timeline appears and the XML downloads automatically.
-
----
-
-## Demo mode
-
-Don't have a game ready? Two demo options appear alongside the Tag Film button:
-
-- **⚡ Demo + Claude** — runs the real AI pipeline on a built-in 2-minute clip (Cal vs Stanford). Requires an API key. Costs ~$0.05–0.10.
-- **▶ Mock Demo** — same clip, labels pulled from the ground-truth XML instead of Claude. Free, completes in ~10 seconds. Good for testing the UI and XML output format.
-
----
-
-## Configuration
-
-Edit `config.yaml` to tune the pipeline:
-
-```yaml
-frame_diff_threshold: 30.0     # motion sensitivity (lower = more frames extracted)
-confidence_threshold: 0.6      # Claude predictions below this are logged to review.log, not written to XML
-stable_sample_interval: 15     # seconds between frames in calm zones
-motion_sample_interval: 5      # seconds between frames in active zones
-transition_window: 30          # seconds around each label boundary to resample densely
-batch_size: 4                  # frames per Claude API call
+Add an `.env` file to pre-fill your API key:
+```
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Low-confidence frames are written to `review.log` for manual review.
+Demo mode is available without a game file — uses a pre-cut 2-minute Cal clip with ground-truth labels.
+
+---
+
+## Training the YOLO model
+
+### Step 1 — Bootstrap labels
+
+Extract frames from labeled game footage and run pretrained YOLO person detection:
+
+```bash
+# Test on Cal, first 10 min — check yolo_bootstrap/previews/ to verify detection quality
+python bootstrap_labels.py --test
+
+# Run on all 6 games once satisfied
+python bootstrap_labels.py
+```
+
+Output lands in `yolo_bootstrap/images/` and `yolo_bootstrap/labels/` (all boxes stubbed as class 0).
+
+### Step 2 — Roboflow review
+
+1. Upload `yolo_bootstrap/images/` + `yolo_bootstrap/labels/` to [Roboflow](https://roboflow.com)
+2. Relabel each detected player box as `player_dark`, `player_light`, or `goalkeeper`
+3. Export as **YOLOv8 format** and place `dataset.yaml` at the project root
+
+### Step 3 — Fine-tune
+
+```bash
+python yolov8_train.py
+```
+
+Model checkpoints saved to `runs/train/waterpolo/`.
+
+---
+
+## Dataset
+
+Six labeled games in `datasets/`:
+
+| Game | File |
+|------|------|
+| Cal  | Cal.mp4 + Cal.xml |
+| Ford | Ford.mp4 + Ford.xml |
+| LB   | LB.mp4 + LB.xml |
+| SJSU | SJSU.mp4 + SJSU.xml |
+| UCLA | UCLA.mp4 + UCLA.xml |
+| USC  | USC.mp4 + USC.xml |
+
+Each XML is a Sportscode timeline (UTF-16) with `[Team] Offense`, `[Team] Transition O`, and `[Team] 6v5` instances.
+
+---
+
+## Camera constraints
+
+- Camera zooms into the attacking end — full pool is not always in frame
+- Pool orientation varies by broadcast; teams switch sides at half-time
+- The classifier uses cap count ratio, optical flow, zoom level, and goalie position as orientation-invariant signals rather than pool geometry
 
 ---
 
 ## Output format
 
-The `.xml` output is UTF-8 and Sportscode-compatible. Open it in Sportscode via **File → Open**. The six codes appear color-coded by team (using the cap colors you sampled). Each instance has exact start/end timestamps in seconds.
-
-6v5 possessions appear as two overlapping instances — `[Team] Offense` and `[Team] 6v5` with identical timestamps — matching the convention used in manually-tagged Sportscode files.
+Sportscode-compatible UTF-8 XML. Open via **File → Open** in Sportscode. 6v5 possessions appear as two overlapping instances — `[Team] Offense` and `[Team] 6v5` — matching the convention in hand-tagged files.
